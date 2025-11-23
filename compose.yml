@@ -1,0 +1,9 @@
+version: "3.8"
+services:
+  dev:
+    image: golang:1.22
+    privileged: true     # namespace と mount に必要
+    volumes:
+      - .:/work
+    working_dir: /work
+    tty: true
