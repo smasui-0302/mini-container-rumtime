@@ -35,4 +35,4 @@ go.work.sum
 rootfs/*
 
 # build
-mini-container
+mini-container/mini-container

@@ -27,7 +27,9 @@
     -   `CLONE_NEWPID`: プロセスID番号空間を隔離
     -   `CLONE_NEWNS`: マウント名前空間（ファイルシステム）を隔離
     -   `CLONE_NEWNET`: ネットワーク名前空間を隔離（ネットワークスタックの分離）
-4.  **IOストリーム**: Stdin、Stdout、Stderr を現在のプロセスに接続し対話を可能にする
+    -   `CLONE_NEWUSER`: ユーザー名前空間を隔離（UID/GIDの分離）
+4.  **IDマッピング**: `UidMappings` / `GidMappings` を設定し、コンテナ内の `root` (0) をホスト側の実行ユーザーのUID/GIDにマッピングする
+5.  **IOストリーム**: Stdin、Stdout、Stderr を現在のプロセスに接続し対話を可能にする
 
 ### `child` 関数
 

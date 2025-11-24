@@ -9,10 +9,12 @@
 - [x] **UTS Namespace**: ホスト名の隔離 (実装済み)
 - [x] **PID Namespace**: プロセスIDの隔離 (実装済み)
 - [x] **Mount Namespace**: ファイルシステムマウントの隔離 (実装済み)
-- [ ] **Network Namespace**: ネットワークスタックの隔離 (実装中)
+- [x] **Network Namespace**: ネットワークスタックの隔離 (実装済み)
     - `CLONE_NEWNET` フラグの追加
     - コンテナ内でのループバックインターフェース(`lo`)の有効化
-- [ ] **User Namespace**: ユーザーID/グループIDの隔離
+- [x] **User Namespace**: ユーザーID/グループIDの隔離 (実装済み)
+    - `CLONE_NEWUSER` フラグの追加
+    - IDマッピング (UidMappings/GidMappings) の実装
     - root権限なしでのコンテナ実行 (Rootless containers) の理解
 
 ## フェーズ2: ファイルシステムとルート (Rootfs)
