@@ -1,8 +1,12 @@
 version: "3.8"
 services:
   dev:
-    image: golang:1.22
-    privileged: true     # namespace と mount に必要
+    image: golang:1.24
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_PTRACE
     volumes:
       - .:/work
     working_dir: /work
