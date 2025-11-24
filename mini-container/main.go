@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // main プログラムのエントリーポイント
@@ -40,26 +42,22 @@ func run() {
 	// CLONE_NEWUTS: ホスト名とドメイン名を分離
 	// CLONE_NEWPID: プロセスID空間を分離
 	// CLONE_NEWNS:  マウント名前空間を分離
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: syscall.CLONE_NEWUTS |
-			syscall.CLONE_NEWPID |
-			syscall.CLONE_NEWNS |
-			syscall.CLONE_NEWNET |
-			syscall.CLONE_NEWUSER,
-		UidMappings: []syscall.SysProcIDMap{
-			{
-				ContainerID: 0,
-				HostID:      os.Getuid(),
-				Size:        1,
-			},
-		},
-		GidMappings: []syscall.SysProcIDMap{
-			{
-				ContainerID: 0,
-				HostID:      os.Getgid(),
-				Size:        1,
-			},
-		},
+	cmd.SysProcAttr = &unix.SysProcAttr{
+		Cloneflags: unix.CLONE_NEWUTS |
+			unix.CLONE_NEWPID |
+			unix.CLONE_NEWNS |
+			unix.CLONE_NEWNET |
+			unix.CLONE_NEWUSER,
+		UidMappings: []syscall.SysProcIDMap{{
+			ContainerID: 0,
+			HostID:      os.Getuid(),
+			Size:        1,
+		}},
+		GidMappings: []syscall.SysProcIDMap{{
+			ContainerID: 0,
+			HostID:      os.Getgid(),
+			Size:        1,
+		}},
 	}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -79,7 +77,7 @@ func child() {
 	if len(os.Args) < 4 {
 		usageAndExit("usage: mini-container child <rootfs> <cmd> [args...]")
 	}
-	fmt.Printf("[child] PID=%d, setting up container...\n", syscall.Getpid())
+	fmt.Printf("[child] PID=%d, UID=%d, GID=%d, setting up container...\n", unix.Getpid(), os.Getuid(), os.Getgid())
 
 	rootfs := os.Args[2]
 	cmdPath := os.Args[3]
@@ -87,12 +85,18 @@ func child() {
 
 	// 1. ホスト名の設定
 	// コンテナ内でのみ有効なホスト名を設定
-	if err := syscall.Sethostname([]byte("mini-container")); err != nil {
+	if err := unix.Sethostname([]byte("mini-container")); err != nil {
 		fmt.Println("[child] sethostname error: ", err)
 		os.Exit(1)
 	}
 
-	// 2. loインターフェースの有効化
+	// 0. ルートマウントを private に設定 (pivot_root に必要)
+	if err := unix.Mount("", "/", "", unix.MS_PRIVATE|unix.MS_REC, ""); err != nil {
+		fmt.Println("[child] mount private error: ", err)
+		os.Exit(1)
+	}
+
+	// 1. loインターフェースの有効化
 	// 新しいNetwork NamespaceではloがDOWN状態のためUPにする
 	// chroot前なのでホスト(このプログラムを実行している環境)のipコマンドを利用できる
 	if err := exec.Command("ip", "link", "set", "lo", "up").Run(); err != nil {
@@ -100,7 +104,7 @@ func child() {
 		os.Exit(1)
 	}
 
-	// 3. ルートファイルシステムの変更(chroot)
+	// 2. ルートファイルシステムの変更(chroot)
 	// プロセスのルートディレクトリを指定されたrootfsに変更
 	if err := syscall.Chroot(rootfs); err != nil {
 		fmt.Println("[child] chroot error: ", err)
@@ -113,10 +117,24 @@ func child() {
 		os.Exit(1)
 	}
 
-	// 4. procファイルシステムのマウント
+	// 3. procファイルシステムのマウント
 	// psコマンド等が動作するようにコンテナ内の/procをマウント
-	if err := syscall.Mount("proc", "/proc", "proc", 0, ""); err != nil {
+	flags := uintptr(unix.MS_NOEXEC | unix.MS_NOSUID | unix.MS_NODEV)
+	if err := unix.Mount("proc", "/proc", "proc", flags, ""); err != nil {
 		fmt.Println("[child] mount proc error: ", err)
+		os.Exit(1)
+	}
+
+	// 4. その他のファイルシステムのマウント
+	// /sys (sysfs): カーネル情報、Cgroups等
+	if err := unix.Mount("sysfs", "/sys", "sysfs", flags, ""); err != nil {
+		fmt.Println("[child] mount sysfs error: ", err)
+		os.Exit(1)
+	}
+
+	// /tmp (tmpfs): 一時ファイル用
+	if err := unix.Mount("tmpfs", "/tmp", "tmpfs", flags, ""); err != nil {
+		fmt.Println("[child] mount tmpfs error: ", err)
 		os.Exit(1)
 	}
 
